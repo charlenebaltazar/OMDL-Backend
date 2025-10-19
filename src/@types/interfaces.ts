@@ -10,6 +10,7 @@ export interface IUser extends Document {
   address: string;
   email: string;
   phoneNumber: string;
+  role: string;
   password: string;
   comparePassword: (password: string) => Promise<Boolean>;
 }

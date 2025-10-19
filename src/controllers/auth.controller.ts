@@ -38,6 +38,7 @@ export const signup = catchAsync(
       email,
       phoneNumber,
       password,
+      role
     } = req.body;
 
     if (
@@ -49,7 +50,8 @@ export const signup = catchAsync(
       !address ||
       !email ||
       !phoneNumber ||
-      !password
+      !password || 
+      !role
     )
       return next(new AppError("Invalid empty fields", 400));
 
@@ -67,6 +69,7 @@ export const signup = catchAsync(
       email,
       phoneNumber,
       password,
+      role
     });
 
     createSendToken(res, newUser._id, 201);
@@ -76,6 +79,7 @@ export const signup = catchAsync(
 export const login = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const { email, password } = req.body;
+    const origin = req.headers.origin; 
 
     if (!email || !password)
       return next(new AppError("Invalid empty fields", 400));
@@ -84,6 +88,14 @@ export const login = catchAsync(
 
     if (!user || !(await user?.comparePassword(password)))
       return next(new AppError("Incorrect user credentials", 400));
+
+    if (origin === "https://sevencare-admin.vercel.app" && user.role !== "admin") {
+      return next(new AppError("Only admin accounts can access this site", 403));
+    }
+
+    if (origin === "https://seven-care-user-frontend.vercel.app" && user.role !== "user") {
+      return next(new AppError("Only user accounts can access this site", 403));
+    }
 
     createSendToken(res, user._id, 200);
   },

@@ -40,6 +40,10 @@ const UserSchema = new mongoose.Schema<IUser>({
     required: [true, "PhoneNumber field is required"],
     unique: true,
   },
+  role: {
+    type: "String",
+    required: [true, "User role is required"],
+  },
   password: {
     type: String,
     required: [true, "Password field is required"],
