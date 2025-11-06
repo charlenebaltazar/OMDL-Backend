@@ -10,17 +10,6 @@ const AppointmentSchema = new mongoose.Schema({
   medicalDepartment: {
     type: [String],
     required: true,
-    enum: [
-      "Consultation",
-      "Vaccination",
-      "Medical Certificate",
-      "Laboratory",
-      "Holistic Care",
-      "Circumcision/TULI",
-      "Medical Check Up",
-      "Prenatal Check Up",
-      "Family Planning",
-    ],
     validate: {
       validator: function (v: string[]) {
         return v.length > 0 && v.length <= 3;

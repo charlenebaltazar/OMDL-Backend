@@ -12,6 +12,7 @@ export interface IUser extends Document {
   phoneNumber: string;
   role: string;
   password: string;
+  createdAt: Date;
   comparePassword: (password: string) => Promise<Boolean>;
 }
 
@@ -23,4 +24,18 @@ export interface ITransactions {
   status: string;
   createdAt: Date;
   isDeleted: boolean;
+}
+
+export interface IServices {
+  _id: Types.ObjectId;
+  name: string;
+  price: number;
+  status: string;
+}
+
+export interface IDoctors {
+  _id: Types.ObjectId;
+  name: string;
+  specialization: string;
+  schedule: Date;
 }
