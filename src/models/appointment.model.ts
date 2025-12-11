@@ -7,6 +7,11 @@ const AppointmentSchema = new mongoose.Schema({
     ref: "user",
     required: true,
   },
+  doctorId: {
+    type: Schema.Types.ObjectId,
+    ref: "doctor",
+    required: false,
+  },
   medicalDepartment: {
     type: [String],
     required: true,
@@ -17,37 +22,33 @@ const AppointmentSchema = new mongoose.Schema({
       message: "You must select between 1 and 3 departments",
     },
   },
-  schedule: {
-    type: Date,
-    required: true,
+  medicalRecord: {
+    type: Schema.Types.ObjectId,
+    ref: "medicalrecord",
+    default: null,
   },
   email: {
     type: String,
-    required: [true, "Email field is required"],
-    validate: [validator.isEmail, ""],
+    required: true,
   },
-  phoneNumber: {
-    type: String,
-    required: [true, "PhoneNumber field is required"],
+  schedule: {
+    type: Date,
+    required: true,
   },
   status: {
     type: String,
     default: "Pending",
   },
-  isPaid: {
-    type: Boolean,
-    default: false,
-  },
   createdAt: {
     type: Date,
     default: Date.now,
   },
-  isDeleted: {
+  isArchived: {
     type: Boolean,
     default: false,
   },
 });
 
-const Appointment = mongoose.model("Appointment", AppointmentSchema);
+const Appointment = mongoose.model("appointment", AppointmentSchema);
 
 export default Appointment;

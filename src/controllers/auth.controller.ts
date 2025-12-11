@@ -1,11 +1,10 @@
 import { NextFunction, Request, Response } from "express";
-import crypto from "crypto";
 import catchAsync from "../utils/catchAsync";
 import AppError from "../utils/appError";
 import { Types } from "mongoose";
 import signToken from "../utils/signToken";
 import User from "../models/user.model";
-import PasswordResetCode from "../models/passwordResetModel";
+import sendPasswordResetCode from "../utils/sendResetCodeEmail";
 
 const createSendToken = (
   res: Response,
@@ -38,7 +37,7 @@ export const signup = catchAsync(
       email,
       phoneNumber,
       password,
-      role
+      role,
     } = req.body;
 
     if (
@@ -50,7 +49,7 @@ export const signup = catchAsync(
       !address ||
       !email ||
       !phoneNumber ||
-      !password || 
+      !password ||
       !role
     )
       return next(new AppError("Invalid empty fields", 400));
@@ -69,7 +68,7 @@ export const signup = catchAsync(
       email,
       phoneNumber,
       password,
-      role
+      role,
     });
 
     createSendToken(res, newUser._id, 201);
@@ -78,8 +77,8 @@ export const signup = catchAsync(
 
 export const login = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { email, password } = req.body;
-    const origin = req.headers.origin; 
+    const { email, password, role } = req.body;
+    const origin = req.headers.origin;
 
     if (!email || !password)
       return next(new AppError("Invalid empty fields", 400));
@@ -89,12 +88,10 @@ export const login = catchAsync(
     if (!user || !(await user?.comparePassword(password)))
       return next(new AppError("Incorrect user credentials", 400));
 
-    if (origin === "https://sevencare-admin.vercel.app" && user.role !== "admin") {
-      return next(new AppError("Only admin accounts can access this site", 403));
-    }
-
-    if (origin === "https://seven-care-user-frontend.vercel.app" && user.role !== "user") {
-      return next(new AppError("Only user accounts can access this site", 403));
+    if (role !== user.role) {
+      return next(
+        new AppError("You are not authorized to access this site", 403),
+      );
     }
 
     createSendToken(res, user._id, 200);
@@ -112,20 +109,30 @@ export const forgotPassword = catchAsync(
     if (!user)
       return next(new AppError("User belonging to this email not found", 404));
 
-    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const resetCode = Math.floor(1000 + Math.random() * 9000).toString();
 
-    const codeHash = crypto
-      .createHash("sha256")
-      .update(resetCode)
-      .digest("hex");
+    user.resetCode = resetCode;
+    await user.save({ validateBeforeSave: false });
 
-    const resetCodeExpires = new Date(Date.now() + 5 * 60 * 1000);
+    await sendPasswordResetCode(user, resetCode);
 
-    const passwordResetCode = await PasswordResetCode.create({
-      userId: user._id,
-      codeHash,
-      expiresAt: resetCodeExpires,
-    });
+    res.status(200).json({ status: "Success" });
+  },
+);
+
+export const resetCode = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const { email, resetCode } = req.body;
+
+    if (!email || !resetCode) {
+      return next(new AppError("Missing required field", 400));
+    }
+
+    const user = await User.findOne({ email }).select("+resetCode");
+    if (!user) return next(new AppError("User not found", 404));
+
+    if (String(user.resetCode) !== String(resetCode).trim())
+      return next(new AppError("Invalid reset code", 400));
 
     res.status(200).json({ status: "Success" });
   },
@@ -133,34 +140,22 @@ export const forgotPassword = catchAsync(
 
 export const resetPassword = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const { email, resetCode, newPassword } = req.body;
+    const { email, password } = req.body;
 
-    if (!email || !resetCode || !newPassword) {
-      return next(new AppError("Missing required fields", 400));
-    }
+    if (!email || !password)
+      return next(new AppError("Missing required field", 400));
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select("+resetCode +password");
     if (!user) return next(new AppError("User not found", 404));
 
-    const codeHash = crypto
-      .createHash("sha256")
-      .update(resetCode)
-      .digest("hex");
+    user.password = password;
+    user.resetCode = "";
 
-    const storedCode = await PasswordResetCode.findOne({
-      userId: user._id,
-      codeHash,
-      expiresAt: { $gt: new Date() },
-    });
-
-    if (!storedCode) return next(new AppError("Invalid or expired code", 400));
-
-    user.password = newPassword;
     await user.save();
 
-    await PasswordResetCode.deleteMany({ userId: user._id }); // cleanup
-
-    createSendToken(res, user._id, 200);
+    res
+      .status(200)
+      .json({ status: "success", message: "Password reset successfully" });
   },
 );
 

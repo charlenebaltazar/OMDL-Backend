@@ -50,6 +50,10 @@ const UserSchema = new mongoose.Schema<IUser>({
     minlength: 8,
     select: false,
   },
+  resetCode: {
+    type: String,
+    select: false,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

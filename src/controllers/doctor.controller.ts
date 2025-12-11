@@ -25,9 +25,39 @@ export const createDoctor = catchAsync(
 
 export const getDoctors = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const doctors = await Doctor.find();
+    const { specialization, search } = req.query;
 
-    res.status(200).json({ status: "Success", data: doctors });
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 15;
+    const skip = (page - 1) * limit;
+
+    const filter: any = {};
+
+    if (specialization) filter.specialization = specialization;
+    if (search) {
+      const regex = new RegExp(search as string, "i");
+      filter.$or = [
+        { name: { $regex: regex } },
+        { specialization: { $regex: regex } },
+      ];
+    }
+
+    const total = await Doctor.countDocuments(filter);
+
+    const doctors = await Doctor.find(filter)
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      status: "success",
+      total,
+      results: doctors.length,
+      currentPage: page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      data: doctors,
+    });
   },
 );
 

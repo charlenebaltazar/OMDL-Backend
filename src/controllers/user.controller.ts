@@ -49,31 +49,112 @@ export const createAdmin = catchAsync(
 
 export const getAdmins = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const admins = await User.find({ role: "admin" });
+    const { gender, search } = req.query;
 
-    res.status(200).json({ status: "success", data: admins });
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 15;
+    const skip = (page - 1) * limit;
+
+    const filter: any = { role: "admin" };
+
+    if (gender) filter.gender = gender;
+    if (search) {
+      const regex = new RegExp(search as string, "i");
+
+      filter.$or = [
+        { firstname: { $regex: regex } },
+        { surname: { $regex: regex } },
+        {
+          $expr: {
+            $regexMatch: {
+              input: { $concat: ["$firstname", " ", "$surname"] },
+              regex: search,
+              options: "i",
+            },
+          },
+        },
+      ];
+    }
+
+    const total = await User.countDocuments(filter);
+
+    const patients = await User.find(filter)
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      status: "success",
+      total,
+      results: patients.length,
+      currentPage: page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      data: patients,
+    });
   },
 );
 
 export const getPatients = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const patients = await User.find({ role: "user" });
+    const { gender, maritalStatus, search } = req.query;
 
-    res.status(200).json({ status: "success", data: patients });
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 15;
+    const skip = (page - 1) * limit;
+
+    const filter: any = { role: "user" };
+
+    if (gender) filter.gender = gender;
+    if (maritalStatus) filter.maritalStatus = maritalStatus;
+    if (search) {
+      const regex = new RegExp(search as string, "i");
+
+      filter.$or = [
+        { firstname: { $regex: regex } },
+        { surname: { $regex: regex } },
+        {
+          $expr: {
+            $regexMatch: {
+              input: { $concat: ["$firstname", " ", "$surname"] },
+              regex: search,
+              options: "i",
+            },
+          },
+        },
+      ];
+    }
+
+    const total = await User.countDocuments(filter);
+
+    const patients = await User.find(filter)
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      status: "success",
+      total,
+      results: patients.length,
+      currentPage: page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      data: patients,
+    });
   },
 );
 
-export const getAdmin = catchAsync(
+export const getAccount = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const id = req.params.id;
 
     if (!id) return next(new AppError("ID not found", 404));
 
-    const admin = await User.findById(id);
+    const account = await User.findById(id);
 
-    if (!admin) return next(new AppError("Admin not found", 404));
+    if (!account) return next(new AppError("Account not found", 404));
 
-    res.status(200).json({ status: "success", data: admin });
+    res.status(200).json({ status: "success", data: account });
   },
 );
 
@@ -121,6 +202,8 @@ export const updateAccount = catchAsync(
       "address",
       "email",
       "phoneNumber",
+      "gender",
+      "maritalStatus",
       "password",
     ];
 
@@ -139,6 +222,148 @@ export const updateAccount = catchAsync(
       status: "Success",
       msg: "Account updated successfully",
       data: user,
+    });
+  },
+);
+
+export const getWeeklyPatientCounts = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const now = new Date();
+
+    // Start of the week (Sunday)
+    const day = now.getUTCDay(); // 0=Sun, 6=Sat
+    const startCurrent = new Date(now);
+    startCurrent.setUTCDate(now.getUTCDate() - day);
+    startCurrent.setUTCHours(0, 0, 0, 0);
+
+    const endCurrent = new Date(startCurrent);
+    endCurrent.setUTCDate(startCurrent.getUTCDate() + 6);
+    endCurrent.setUTCHours(23, 59, 59, 999);
+
+    // Previous week
+    const startPrevious = new Date(startCurrent);
+    startPrevious.setUTCDate(startCurrent.getUTCDate() - 7);
+    const endPrevious = new Date(startPrevious);
+    endPrevious.setUTCDate(startPrevious.getUTCDate() + 6);
+    endPrevious.setUTCHours(23, 59, 59, 999);
+
+    const totalCurrent = await User.countDocuments({
+      role: "user",
+      createdAt: { $gte: startCurrent, $lte: endCurrent },
+    });
+
+    const totalPrevious = await User.countDocuments({
+      role: "user",
+      createdAt: { $gte: startPrevious, $lte: endPrevious },
+    });
+
+    const percentage =
+      totalPrevious === 0
+        ? 100
+        : Number(
+            (((totalCurrent - totalPrevious) / totalPrevious) * 100).toFixed(1),
+          );
+
+    res.status(200).json({
+      status: "Success",
+      totalCurrent,
+      totalPrevious,
+      percentage,
+      period: "week",
+    });
+  },
+);
+
+export const getMonthlyPatientCounts = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const now = new Date();
+
+    const startCurrent = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+    );
+    const endCurrent = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999),
+    );
+
+    const startPrevious = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1),
+    );
+    const endPrevious = new Date(
+      Date.UTC(
+        startPrevious.getUTCFullYear(),
+        startPrevious.getUTCMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+        999,
+      ),
+    );
+
+    const totalCurrent = await User.countDocuments({
+      role: "user",
+      createdAt: { $gte: startCurrent, $lte: endCurrent },
+    });
+
+    const totalPrevious = await User.countDocuments({
+      role: "user",
+      createdAt: { $gte: startPrevious, $lte: endPrevious },
+    });
+
+    const percentage =
+      totalPrevious === 0
+        ? 100
+        : Number(
+            (((totalCurrent - totalPrevious) / totalPrevious) * 100).toFixed(1),
+          );
+
+    res.status(200).json({
+      status: "Success",
+      totalCurrent,
+      totalPrevious,
+      percentage,
+      period: "month",
+    });
+  },
+);
+
+export const getYearlyPatientCounts = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const now = new Date();
+
+    const startCurrent = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+    const endCurrent = new Date(
+      Date.UTC(now.getUTCFullYear(), 11, 31, 23, 59, 59, 999),
+    );
+
+    const startPrevious = new Date(Date.UTC(now.getUTCFullYear() - 1, 0, 1));
+    const endPrevious = new Date(
+      Date.UTC(now.getUTCFullYear() - 1, 11, 31, 23, 59, 59, 999),
+    );
+
+    const totalCurrent = await User.countDocuments({
+      role: "user",
+      createdAt: { $gte: startCurrent, $lte: endCurrent },
+    });
+
+    const totalPrevious = await User.countDocuments({
+      role: "user",
+      createdAt: { $gte: startPrevious, $lte: endPrevious },
+    });
+
+    const percentage =
+      totalPrevious === 0
+        ? 100
+        : Number(
+            (((totalCurrent - totalPrevious) / totalPrevious) * 100).toFixed(1),
+          );
+
+    res.status(200).json({
+      status: "Success",
+      totalCurrent,
+      totalPrevious,
+      percentage,
+      period: "year",
     });
   },
 );

@@ -12,6 +12,7 @@ export interface IUser extends Document {
   phoneNumber: string;
   role: string;
   password: string;
+  resetCode: string;
   createdAt: Date;
   comparePassword: (password: string) => Promise<Boolean>;
 }
@@ -31,6 +32,7 @@ export interface IServices {
   name: string;
   price: number;
   status: string;
+  createdAt: Date;
 }
 
 export interface IDoctors {
@@ -38,4 +40,22 @@ export interface IDoctors {
   name: string;
   specialization: string;
   schedule: Date;
+  createdAt: Date;
+}
+export interface ISchedule {
+  _id: Types.ObjectId;
+  doctorId: Types.ObjectId;
+  start: Date;
+  end: Date;
+  createdAt: Date;
+}
+
+export interface IMedicalRecord extends Document {
+  _id: Types.ObjectId;
+  appointmentId: Types.ObjectId;
+  filename: string;
+  driveId: string;
+  originalName: string;
+  fileUrl: string;
+  uploadedAt: Date;
 }
